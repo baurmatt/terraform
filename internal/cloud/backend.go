@@ -153,7 +153,9 @@ func (b *Cloud) PrepareConfig(obj cty.Value) (cty.Value, tfdiags.Diagnostics) {
 	}
 
 	if val := obj.GetAttr("organization"); val.IsNull() || val.AsString() == "" {
-		diags = diags.Append(invalidOrganizationConfigMissingValue)
+		if val := os.Getenv("TF_ORGANIZATION"); val == "" {
+			diags = diags.Append(invalidOrganizationConfigMissingValue)
+		}
 	}
 
 	WorkspaceMapping := WorkspaceMapping{}
@@ -343,8 +345,10 @@ func (b *Cloud) setConfigurationFields(obj cty.Value) tfdiags.Diagnostics {
 	}
 
 	// Get the organization.
-	if val := obj.GetAttr("organization"); !val.IsNull() {
+	if val := obj.GetAttr("organization"); !val.IsNull() && val.AsString() != "" {
 		b.organization = val.AsString()
+	} else {
+		b.organization = os.Getenv("TF_ORGANIZATION")
 	}
 
 	// Get the workspaces configuration block and retrieve the

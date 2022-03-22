@@ -146,6 +146,92 @@ func TestCloud_PrepareConfig(t *testing.T) {
 	}
 }
 
+func TestCloud_PrepareConfigWithEnvVars(t *testing.T) {
+	cases := map[string]struct {
+		config cty.Value
+		vars   map[string]string
+	}{
+		"with no organization specified": {
+			config: cty.ObjectVal(map[string]cty.Value{
+				"organization": cty.NullVal(cty.String),
+				"workspaces": cty.ObjectVal(map[string]cty.Value{
+					"name": cty.StringVal("prod"),
+					"tags": cty.NullVal(cty.Set(cty.String)),
+				}),
+			}),
+			vars: map[string]string{
+				"TF_ORGANIZATION": "example-org",
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		s := testServer(t)
+		b := New(testDisco(s))
+
+		for k, v := range tc.vars {
+			os.Setenv(k, v)
+			defer os.Unsetenv(k)
+		}
+
+		_, valDiags := b.PrepareConfig(tc.config)
+		if valDiags.Err() != nil {
+			t.Fatalf("%s: unexpected validation result: %v", name, valDiags.Err())
+		}
+	}
+}
+
+func TestCloud_configWithEnvVars(t *testing.T) {
+	cases := map[string]struct {
+		config cty.Value
+		vars   map[string]string
+	}{
+		"with no organization specified": {
+			config: cty.ObjectVal(map[string]cty.Value{
+				"hostname":     cty.NullVal(cty.String),
+				"token":        cty.NullVal(cty.String),
+				"organization": cty.NullVal(cty.String),
+				"workspaces": cty.ObjectVal(map[string]cty.Value{
+					"name": cty.StringVal("prod"),
+					"tags": cty.NullVal(cty.Set(cty.String)),
+				}),
+			}),
+			vars: map[string]string{
+				"TF_ORGANIZATION": "hashicorp",
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		s := testServer(t)
+		b := New(testDisco(s))
+
+		for k, v := range tc.vars {
+			os.Setenv(k, v)
+			defer os.Unsetenv(k)
+		}
+
+		_, valDiags := b.PrepareConfig(tc.config)
+		if valDiags.Err() != nil {
+			t.Fatalf("%s: unexpected validation result: %v", name, valDiags.Err())
+		}
+
+		diags := b.Configure(tc.config)
+		if diags.Err() != nil {
+			t.Fatalf("%s: unexpected configuration result: %v", name, valDiags.Err())
+		}
+
+		for k, v := range tc.vars {
+			switch k {
+			case "TF_ORGANIZATION":
+				if b.organization != v {
+					t.Fatalf("%s: organization not valid: %s, expected: %s", name, b.organization, v)
+				}
+			}
+		}
+	}
+}
+
 func TestCloud_config(t *testing.T) {
 	cases := map[string]struct {
 		config  cty.Value
